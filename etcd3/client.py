@@ -12,7 +12,9 @@ import etcd3.exceptions as exceptions
 import etcd3.leases as leases
 import etcd3.locks as locks
 import etcd3.members
+import etcd3.roles as roles
 import etcd3.transactions as transactions
+import etcd3.users as users
 import etcd3.utils as utils
 import etcd3.watch as watch
 
@@ -25,6 +27,7 @@ _EXCEPTIONS_BY_CODE = {
 
 
 def _translate_exception(exc):
+    print exc._state.details
     code = exc.code()
     exception = _EXCEPTIONS_BY_CODE.get(code)
     if exception is None:
@@ -146,79 +149,142 @@ class Etcd3Client(object):
         )
 
     @_handle_errors
-    def auth_enabled(self):
-        pass
+    def enable_auth(self):
+        auth_enable_request = etcdrpc.AuthEnableRequest()
+        auth_enable_response = self.authstub.AuthEnable(auth_enable_request,
+                                                        self.timeout)
 
     @_handle_errors
-    def auth_disable(self):
-        pass
+    def disable_auth(self):
+        auth_disable_request = etcdrpc.AuthDisableRequest()
+        auth_disable_response = self.authstub.AuthDisable(auth_disable_request,
+                                                          self.timeout)
 
     @_handle_errors
-    def authenticate(self):
-        pass
+    def authenticate(self, username, password):
+        authenticate_request = etcdrpc.AuthenticateRequest(name=username, password=password)
+        authenticate_response = self.authstub.Authenticate(authenticate_request,
+                                                           self.timeout)
+        return authenticate_response.token
 
     @_handle_errors
-    def user_add(self, username, password):
-        auth_user_add_request = etcdrpc.AuthUserAddRequest()
-        auth_user_add_request.name = username
-        auth_user_add_request.password = password
+    def add_user(self, username, password):
+        auth_user_add_request = etcdrpc.AuthUserAddRequest(name=username, password=password)
         auth_user_add_response = self.authstub.UserAdd(auth_user_add_request,
                                                        self.timeout)
-        #print(dir(auth_user_add_response))
+        return users.User(name=username)
 
     @_handle_errors
-    def user_get(self, user):
-        pass
+    def get_user(self, username):
+        auth_user_get_request = etcdrpc.AuthUserGetRequest(name=username)
+        auth_user_get_response = self.authstub.UserGet(auth_user_get_request,
+                                                       self.timeout)
+        return users.User(name=username,
+                          roles=auth_user_get_response.roles)
 
     @_handle_errors
-    def user_list(self):
+    def list_user(self):
         auth_user_list_request = etcdrpc.AuthUserListRequest()
         auth_user_list_response = self.authstub.UserList(auth_user_list_request,
                                                          self.timeout)
 
-        print auth_user_list_response.header
-        #for user in auth_user_list_response:
-        #    yield user
+        for user in auth_user_list_response.users:
+            yield users.User(user)
 
     @_handle_errors
-    def user_delete():
-        pass
+    def delete_user(self, username):
+        auth_user_delete_request = etcdrpc.AuthUserDeleteRequest(name=username)
+        auth_user_delete_response = self.authstub.UserDelete(auth_user_delete_request,
+                                                             self.timeout)
 
     @_handle_errors
-    def user_change_password():
-        pass
+    def change_password_user(self, username, password):
+        auth_user_change_password_request = etcdrpc.AuthUserChangePasswordRequest(name=username,
+                                                                                  password=password)
+        auth_user_change_password_response = self.authstub.UserChangePassword(auth_user_change_password_request,
+                                                                              self.timeout)
+        return self.get_user(username)
 
     @_handle_errors
-    def user_grant_role():
-        pass
+    def grant_role_user(self, username, rolename):
+        auth_user_grant_role_request = etcdrpc.AuthUserGrantRoleRequest(user=username,
+                                                                        role=rolename)
+        auth_user_grant_role_response = self.authstub.UserGrantRole(auth_user_grant_role_request,
+                                                                    self.timeout)
+        return self.get_user(username)
 
     @_handle_errors
-    def user_revoke_role():
-        pass
+    def revoke_role_user(self, username, rolename):
+        auth_user_revoke_role_request = etcdrpc.AuthUserRevokeRoleRequest(name=username,
+                                                                          role=rolename)
+        auth_user_revoke_role_response = self.authstub.UserRevokeRole(auth_user_revoke_role_request,
+                                                                      self.timeout)
+        return self.get_user(username)
 
     @_handle_errors
-    def role_add():
-        pass
+    def add_role(self, role_name):
+        auth_role_add_request = etcdrpc.AuthRoleAddRequest(name=role_name)
+        auth_role_add_response = self.authstub.RoleAdd(auth_role_add_request,
+                                                       self.timeout)
+        return roles.Role(role_name)
 
     @_handle_errors
-    def role_get():
-        pass
+    def get_role(self, role_name):
+        auth_role_get_request = etcdrpc.AuthRoleGetRequest(role=role_name)
+        auth_role_get_response = self.authstub.RoleGet(auth_role_get_request,
+                                                       self.timeout)
+        return roles.Role(role_name,
+                          auth_role_get_response.perm)
 
     @_handle_errors
-    def role_list():
-        pass
+    def list_role(self):
+        auth_role_list_request = etcdrpc.AuthRoleListRequest()
+        auth_role_list_response = self.authstub.RoleList(auth_role_list_request,
+                                                         self.timeout)
+
+        for role in auth_role_list_response.roles:
+            yield roles.Role(role)
 
     @_handle_errors
-    def role_delete():
-        pass
+    def delete_role(self, role_name):
+        auth_role_delete_request = etcdrpc.AuthRoleDeleteRequest(role=role_name)
+        auth_role_delete_response = self.authstub.RoleDelete(auth_role_delete_request,
+                                                             self.timeout)
+
+    def _build_role_permission(self, key,
+                               perm_type='read',
+                               range_end=None):
+        permission = etcdrpc.Permission()
+
+        permission.key = key
+        #permission.range_end = range_end
+
+        if perm_type == 'read':
+            permission.permType = etcdrpc.Permission.Type.READ
+        elif perm_type == 'write':
+            permission.permType = etcdrpc.Permission.Type.WRITE
+        elif perm_type == 'readwrite':
+            permission.permType = etcdrpc.Permission.READWRITE
+        else:
+            raise ValueError('per_type must be one of "read", '
+                             '"write", "readwrite"')
+        return permission
 
     @_handle_errors
-    def role_grant_permission():
-        pass
+    def grant_permission_role(self, role_name, key, perm_type='read'):
+        permission = self._build_role_permission(key, perm_type=perm_type)
+        auth_role_grant_permission_request = etcdrpc.AuthRoleGrantPermissionRequest(name=role_name,
+                                                                                    perm=permission)
+        auth_role_grant_permission_response = self.authstub.RoleGrantPermission(auth_role_grant_permission_request,
+                                                                                self.timeout)
+        return self.get_role(role_name)
 
     @_handle_errors
-    def role_revoke_permission():
-        pass
+    def revoke_permission_role(self, role_name, key, range_end):
+        auth_role_revoke_permission_request = etcdrpc.AuthRoleRevokePermissionRequest(role=role_name,
+                                                                                      key=key)
+        auth_role_revoke_permission_response = self.authstub.RoleRevokePermission(auth_role_revoke_permission_request,
+                                                                                  self.timeout)
 
     def _build_get_range_request(self, key,
                                  range_end=None,
