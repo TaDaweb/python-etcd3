@@ -115,6 +115,7 @@ class Etcd3Client(object):
             self.channel = grpc.insecure_channel(self._url)
 
         self.timeout = timeout
+        self.authstub = etcdrpc.AuthStub(self.channel)
         self.kvstub = etcdrpc.KVStub(self.channel)
         self.watcher = watch.Watcher(etcdrpc.WatchStub(self.channel),
                                      timeout=self.timeout)
@@ -143,6 +144,81 @@ class Etcd3Client(object):
             cert_key_file,
             cert_cert_file
         )
+
+    @_handle_errors
+    def auth_enabled(self):
+        pass
+
+    @_handle_errors
+    def auth_disable(self):
+        pass
+
+    @_handle_errors
+    def authenticate(self):
+        pass
+
+    @_handle_errors
+    def user_add(self, username, password):
+        auth_user_add_request = etcdrpc.AuthUserAddRequest()
+        auth_user_add_request.name = username
+        auth_user_add_request.password = password
+        auth_user_add_response = self.authstub.UserAdd(auth_user_add_request,
+                                                       self.timeout)
+        #print(dir(auth_user_add_response))
+
+    @_handle_errors
+    def user_get(self, user):
+        pass
+
+    @_handle_errors
+    def user_list(self):
+        auth_user_list_request = etcdrpc.AuthUserListRequest()
+        auth_user_list_response = self.authstub.UserList(auth_user_list_request,
+                                                         self.timeout)
+
+        print auth_user_list_response.header
+        #for user in auth_user_list_response:
+        #    yield user
+
+    @_handle_errors
+    def user_delete():
+        pass
+
+    @_handle_errors
+    def user_change_password():
+        pass
+
+    @_handle_errors
+    def user_grant_role():
+        pass
+
+    @_handle_errors
+    def user_revoke_role():
+        pass
+
+    @_handle_errors
+    def role_add():
+        pass
+
+    @_handle_errors
+    def role_get():
+        pass
+
+    @_handle_errors
+    def role_list():
+        pass
+
+    @_handle_errors
+    def role_delete():
+        pass
+
+    @_handle_errors
+    def role_grant_permission():
+        pass
+
+    @_handle_errors
+    def role_revoke_permission():
+        pass
 
     def _build_get_range_request(self, key,
                                  range_end=None,
