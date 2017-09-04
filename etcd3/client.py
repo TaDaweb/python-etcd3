@@ -89,34 +89,27 @@ class Alarm(object):
         self.member_id = member_id
 
 
+class SimpleTokenCallCredentials(grpc.AuthMetadataPlugin):
+    """Metadata wrapper for raw access token credentials"""
+
+    def __init__(self, access_token):
+        self._access_token = access_token
+
+    def __call__(self, context, callback):
+        metadata = (('token', self._access_token),)
+        callback(metadata, None)
+
+
 class Etcd3Client(object):
     def __init__(self, host='localhost', port=2379,
-                 ca_cert=None, cert_key=None, cert_cert=None, timeout=None):
+                 ca_cert=None, cert_key=None, cert_cert=None,
+                 timeout=None):
         self._url = '{host}:{port}'.format(host=host, port=port)
-
-        cert_params = [c is not None for c in (cert_cert, cert_key)]
-        if ca_cert is not None:
-            if all(cert_params):
-                credentials = self._get_secure_creds(
-                    ca_cert,
-                    cert_key,
-                    cert_cert
-                )
-                self.uses_secure_channel = True
-                self.channel = grpc.secure_channel(self._url, credentials)
-            elif any(cert_params):
-                # some of the cert parameters are set
-                raise ValueError(
-                    'to use a secure channel ca_cert is required by itself, '
-                    'or cert_cert and cert_key must both be specified.')
-            else:
-                credentials = self._get_secure_creds(ca_cert, None, None)
-                self.uses_secure_channel = True
-                self.channel = grpc.secure_channel(self._url, credentials)
-        else:
-            self.uses_secure_channel = False
-            self.channel = grpc.insecure_channel(self._url)
-
+        self.uses_secure_channel, self.channel = self._create_channel(ca_cert,
+                                                                      cert_key,
+                                                                      cert_cert)
+        self._credentials = None
+        self._metadata = []
         self.timeout = timeout
         self.authstub = etcdrpc.AuthStub(self.channel)
         self.kvstub = etcdrpc.KVStub(self.channel)
@@ -126,6 +119,25 @@ class Etcd3Client(object):
         self.leasestub = etcdrpc.LeaseStub(self.channel)
         self.maintenancestub = etcdrpc.MaintenanceStub(self.channel)
         self.transactions = Transactions()
+
+    def _create_channel(self, ca_cert, cert_key, cert_cert):
+        if ca_cert is None:
+            return False, grpc.insecure_channel(self._url)
+
+        cert_params = [c is not None for c in (cert_cert, cert_key)]
+        # if all cert params are all True or all False then skip.
+        # raise an error if one of them is different.
+        # key or cert left unset
+        if not (all(cert_params) or
+                not (any(cert_params) or all(cert_params))):
+            raise ValueError(
+                'to use a secure channel ca_cert is required by itself, '
+                'or cert_cert and cert_key must be specified.')
+        creds_ssl = self._get_secure_creds(ca_cert,
+                                           cert_key,
+                                           cert_cert)
+        credentials = grpc.ssl_channel_credentials(creds_ssl)
+        return True, grpc.secure_channel(self._url, credentials)
 
     def _get_secure_creds(self, ca_cert, cert_key=None, cert_cert=None):
         cert_key_file = None
@@ -152,42 +164,53 @@ class Etcd3Client(object):
     def enable_auth(self):
         auth_enable_request = etcdrpc.AuthEnableRequest()
         auth_enable_response = self.authstub.AuthEnable(auth_enable_request,
-                                                        self.timeout)
+                                                        metadata=self._metadata,
+                                                        timeout=self.timeout)
 
     @_handle_errors
     def disable_auth(self):
         auth_disable_request = etcdrpc.AuthDisableRequest()
         auth_disable_response = self.authstub.AuthDisable(auth_disable_request,
-                                                          self.timeout)
+                                                          metadata=self._metadata,
+                                                          timeout=self.timeout)
 
     @_handle_errors
-    def authenticate(self, username, password):
-        authenticate_request = etcdrpc.AuthenticateRequest(name=username, password=password)
+    def authenticate(self, username=None, password=None):
+        creds = [c is not None for c in (username, password)]
+        if not any(creds):
+            raise ValueError('To Authenticate the username and password '
+                             'must be specified')
+        cred_user = utils.to_bytes(username)
+        cred_pass = utils.to_bytes(password)
+        authenticate_request = etcdrpc.AuthenticateRequest(name=cred_user, password=cred_pass)
         authenticate_response = self.authstub.Authenticate(authenticate_request,
-                                                           self.timeout)
-        return authenticate_response.token
+                                                           timeout=self.timeout)
+        self._metadata.append(('token', authenticate_response.token))
 
     @_handle_errors
     def add_user(self, username, password):
         auth_user_add_request = etcdrpc.AuthUserAddRequest(name=username, password=password)
         auth_user_add_response = self.authstub.UserAdd(auth_user_add_request,
-                                                       self.timeout)
+                                                       metadata=self._metadata,
+                                                       timeout=self.timeout)
         return users.User(name=username)
 
     @_handle_errors
     def get_user(self, username):
         auth_user_get_request = etcdrpc.AuthUserGetRequest(name=username)
         auth_user_get_response = self.authstub.UserGet(auth_user_get_request,
-                                                       self.timeout)
+                                                       metadata=self._metadata,
+                                                       timeout=self.timeout)
         return users.User(name=username,
                           roles=auth_user_get_response.roles)
 
     @_handle_errors
-    def list_user(self):
+    def list_user(self, token):
+        #cred = grpc.metadata_call_credentials(SimpleTokenCallCredentials(self.token))
         auth_user_list_request = etcdrpc.AuthUserListRequest()
         auth_user_list_response = self.authstub.UserList(auth_user_list_request,
-                                                         self.timeout)
-
+                                                         metadata=self._metadata,
+                                                         timeout=self.timeout)
         for user in auth_user_list_response.users:
             yield users.User(user)
 
@@ -195,14 +218,16 @@ class Etcd3Client(object):
     def delete_user(self, username):
         auth_user_delete_request = etcdrpc.AuthUserDeleteRequest(name=username)
         auth_user_delete_response = self.authstub.UserDelete(auth_user_delete_request,
-                                                             self.timeout)
+                                                             metadata=self._metadata,
+                                                             timeout=self.timeout)
 
     @_handle_errors
     def change_password_user(self, username, password):
         auth_user_change_password_request = etcdrpc.AuthUserChangePasswordRequest(name=username,
                                                                                   password=password)
         auth_user_change_password_response = self.authstub.UserChangePassword(auth_user_change_password_request,
-                                                                              self.timeout)
+                                                                              metadata=self._metadata,
+                                                                              timeout=self.timeout)
         return self.get_user(username)
 
     @_handle_errors
@@ -210,7 +235,8 @@ class Etcd3Client(object):
         auth_user_grant_role_request = etcdrpc.AuthUserGrantRoleRequest(user=username,
                                                                         role=rolename)
         auth_user_grant_role_response = self.authstub.UserGrantRole(auth_user_grant_role_request,
-                                                                    self.timeout)
+                                                                    metadata=self._metadata,
+                                                                    timeout=self.timeout)
         return self.get_user(username)
 
     @_handle_errors
@@ -218,21 +244,24 @@ class Etcd3Client(object):
         auth_user_revoke_role_request = etcdrpc.AuthUserRevokeRoleRequest(name=username,
                                                                           role=rolename)
         auth_user_revoke_role_response = self.authstub.UserRevokeRole(auth_user_revoke_role_request,
-                                                                      self.timeout)
+                                                                      metadata=self._metadata,
+                                                                      timeout=self.timeout)
         return self.get_user(username)
 
     @_handle_errors
     def add_role(self, role_name):
         auth_role_add_request = etcdrpc.AuthRoleAddRequest(name=role_name)
         auth_role_add_response = self.authstub.RoleAdd(auth_role_add_request,
-                                                       self.timeout)
+                                                       metadata=self._metadata,
+                                                       timeout=self.timeout)
         return roles.Role(role_name)
 
     @_handle_errors
     def get_role(self, role_name):
         auth_role_get_request = etcdrpc.AuthRoleGetRequest(role=role_name)
         auth_role_get_response = self.authstub.RoleGet(auth_role_get_request,
-                                                       self.timeout)
+                                                       metadata=self._metadata,
+                                                       timeout=self.timeout)
         return roles.Role(role_name,
                           auth_role_get_response.perm)
 
@@ -240,8 +269,8 @@ class Etcd3Client(object):
     def list_role(self):
         auth_role_list_request = etcdrpc.AuthRoleListRequest()
         auth_role_list_response = self.authstub.RoleList(auth_role_list_request,
-                                                         self.timeout)
-
+                                                         metadata=self._metadata,
+                                                         timeout=self.timeout)
         for role in auth_role_list_response.roles:
             yield roles.Role(role)
 
@@ -249,7 +278,8 @@ class Etcd3Client(object):
     def delete_role(self, role_name):
         auth_role_delete_request = etcdrpc.AuthRoleDeleteRequest(role=role_name)
         auth_role_delete_response = self.authstub.RoleDelete(auth_role_delete_request,
-                                                             self.timeout)
+                                                             metadata=self._metadata,
+                                                             timeout=self.timeout)
 
     def _build_role_permission(self, key,
                                perm_type='read',
@@ -276,7 +306,8 @@ class Etcd3Client(object):
         auth_role_grant_permission_request = etcdrpc.AuthRoleGrantPermissionRequest(name=role_name,
                                                                                     perm=permission)
         auth_role_grant_permission_response = self.authstub.RoleGrantPermission(auth_role_grant_permission_request,
-                                                                                self.timeout)
+                                                                                metadata=self._metadata,
+                                                                                timeout=self.timeout)
         return self.get_role(role_name)
 
     @_handle_errors
@@ -284,7 +315,8 @@ class Etcd3Client(object):
         auth_role_revoke_permission_request = etcdrpc.AuthRoleRevokePermissionRequest(role=role_name,
                                                                                       key=key)
         auth_role_revoke_permission_response = self.authstub.RoleRevokePermission(auth_role_revoke_permission_request,
-                                                                                  self.timeout)
+                                                                                  metadata=self._metadata,
+                                                                                  timeout=self.timeout)
 
     def _build_get_range_request(self, key,
                                  range_end=None,
@@ -348,7 +380,9 @@ class Etcd3Client(object):
         :rtype: bytes, ``KVMetadata``
         """
         range_request = self._build_get_range_request(key)
-        range_response = self.kvstub.Range(range_request, self.timeout)
+        range_response = self.kvstub.Range(range_request,
+                                           metadata=self._metadata,
+                                           timeout=self.timeout)
 
         if range_response.count < 1:
             return None, None
@@ -371,7 +405,9 @@ class Etcd3Client(object):
             sort_order=sort_order,
         )
 
-        range_response = self.kvstub.Range(range_request, self.timeout)
+        range_response = self.kvstub.Range(range_request,
+                                           metadata=self._metadata,
+                                           timeout=self.timeout)
 
         if range_response.count < 1:
             return
@@ -393,7 +429,9 @@ class Etcd3Client(object):
             sort_target=sort_target,
         )
 
-        range_response = self.kvstub.Range(range_request, self.timeout)
+        range_response = self.kvstub.Range(range_request,
+                                           metadata=self._metadata,
+                                           timeout=self.timeout)
 
         if range_response.count < 1:
             return
@@ -428,7 +466,9 @@ class Etcd3Client(object):
         :type lease: either :class:`.Lease`, or int (ID of lease)
         """
         put_request = self._build_put_request(key, value, lease=lease)
-        self.kvstub.Put(put_request, self.timeout)
+        self.kvstub.Put(put_request,
+                        metadata=self._metadata,
+                        timeout=self.timeout)
 
     @_handle_errors
     def replace(self, key, initial_value, new_value):
@@ -480,7 +520,9 @@ class Etcd3Client(object):
         """
         delete_request = self._build_delete_request(key)
         delete_response = self.kvstub.DeleteRange(
-            delete_request, self.timeout)
+            delete_request,
+            metadata=self._metadata,
+            timeout=self.timeout)
         return delete_response.deleted >= 1
 
     @_handle_errors
@@ -490,14 +532,17 @@ class Etcd3Client(object):
             prefix,
             range_end=utils.increment_last_byte(utils.to_bytes(prefix))
         )
-        return self.kvstub.DeleteRange(delete_request, self.timeout)
+        return self.kvstub.DeleteRange(delete_request,
+                                       metadata=self._metadata,
+                                       timeout=self.timeout)
 
     @_handle_errors
     def status(self):
         """Get the status of the responding member."""
         status_request = etcdrpc.StatusRequest()
         status_response = self.maintenancestub.Status(status_request,
-                                                      self.timeout)
+                                                      metadata=self._metadata,
+                                                      timeout=self.timeout)
 
         for m in self.members:
             if m.id == status_response.leader:
@@ -697,7 +742,9 @@ class Etcd3Client(object):
         transaction_request = etcdrpc.TxnRequest(compare=compare,
                                                  success=success_ops,
                                                  failure=failure_ops)
-        txn_response = self.kvstub.Txn(transaction_request, self.timeout)
+        txn_response = self.kvstub.Txn(transaction_request,
+                                       metadata=self._metadata,
+                                       timeout=self.timeout)
 
         responses = []
         for response in txn_response.responses:
@@ -731,7 +778,8 @@ class Etcd3Client(object):
         """
         lease_grant_request = etcdrpc.LeaseGrantRequest(TTL=ttl, ID=lease_id)
         lease_grant_response = self.leasestub.LeaseGrant(lease_grant_request,
-                                                         self.timeout)
+                                                         metadata=self._metadata,
+                                                         timeout=self.timeout)
         return leases.Lease(lease_id=lease_grant_response.ID,
                             ttl=lease_grant_response.TTL,
                             etcd_client=self)
@@ -744,14 +792,17 @@ class Etcd3Client(object):
         :param lease_id: ID of the lease to revoke.
         """
         lease_revoke_request = etcdrpc.LeaseRevokeRequest(ID=lease_id)
-        self.leasestub.LeaseRevoke(lease_revoke_request, self.timeout)
+        self.leasestub.LeaseRevoke(lease_revoke_request,
+                                   metadata=self._metadata,
+                                   timeout=self.timeout)
 
     @_handle_errors
     def refresh_lease(self, lease_id):
         keep_alive_request = etcdrpc.LeaseKeepAliveRequest(ID=lease_id)
         request_stream = [keep_alive_request]
         for response in self.leasestub.LeaseKeepAlive(iter(request_stream),
-                                                      self.timeout):
+                                                      metadata=self._metadata,
+                                                      timeout=self.timeout):
             yield response
 
     @_handle_errors
@@ -759,7 +810,9 @@ class Etcd3Client(object):
         # only available in etcd v3.1.0 and later
         ttl_request = etcdrpc.LeaseTimeToLiveRequest(ID=lease_id,
                                                      keys=True)
-        return self.leasestub.LeaseTimeToLive(ttl_request, self.timeout)
+        return self.leasestub.LeaseTimeToLive(ttl_request,
+                                              metadata=self._metadata,
+                                              timeout=self.timeout)
 
     @_handle_errors
     def lock(self, name, ttl=60):
@@ -788,7 +841,8 @@ class Etcd3Client(object):
         member_add_request = etcdrpc.MemberAddRequest(peerURLs=urls)
 
         member_add_response = self.clusterstub.MemberAdd(member_add_request,
-                                                         self.timeout)
+                                                         metadata=self._metadata,
+                                                         timeout=self.timeout)
         member = member_add_response.member
         return etcd3.members.Member(member.ID,
                                     member.name,
@@ -804,7 +858,9 @@ class Etcd3Client(object):
         :param member_id: ID of the member to remove
         """
         member_rm_request = etcdrpc.MemberRemoveRequest(ID=member_id)
-        self.clusterstub.MemberRemove(member_rm_request, self.timeout)
+        self.clusterstub.MemberRemove(member_rm_request,
+                                      metadata=self._metadata,
+                                      timeout=self.timeout)
 
     @_handle_errors
     def update_member(self, member_id, peer_urls):
@@ -817,7 +873,9 @@ class Etcd3Client(object):
         """
         member_update_request = etcdrpc.MemberUpdateRequest(ID=member_id,
                                                             peerURLs=peer_urls)
-        self.clusterstub.MemberUpdate(member_update_request, self.timeout)
+        self.clusterstub.MemberUpdate(member_update_request,
+                                      metadata=self._metadata,
+                                      timeout=self.timeout)
 
     @property
     def members(self):
@@ -829,7 +887,8 @@ class Etcd3Client(object):
         """
         member_list_request = etcdrpc.MemberListRequest()
         member_list_response = self.clusterstub.MemberList(member_list_request,
-                                                           self.timeout)
+                                                           metadata=self._metadata,
+                                                           timeout=self.timeout)
 
         for member in member_list_response.members:
             yield etcd3.members.Member(member.ID,
@@ -854,7 +913,9 @@ class Etcd3Client(object):
         """
         compact_request = etcdrpc.CompactionRequest(revision=revision,
                                                     physical=physical)
-        self.kvstub.Compact(compact_request, self.timeout)
+        self.kvstub.Compact(compact_request,
+                            metadata=self._metadata,
+                            timeout=self.timeout)
 
     @_handle_errors
     def defragment(self):
@@ -912,7 +973,8 @@ class Etcd3Client(object):
                                                   member_id,
                                                   'no space')
         alarm_response = self.maintenancestub.Alarm(alarm_request,
-                                                    self.timeout)
+                                                    metadata=self._metadata,
+                                                    timeout=self.timeout)
 
         return [Alarm(alarm.alarm, alarm.memberID)
                 for alarm in alarm_response.alarms]
@@ -931,7 +993,8 @@ class Etcd3Client(object):
                                                   member_id,
                                                   alarm_type)
         alarm_response = self.maintenancestub.Alarm(alarm_request,
-                                                    self.timeout)
+                                                    metadata=self._metadata,
+                                                    timeout=self.timeout)
 
         for alarm in alarm_response.alarms:
             yield Alarm(alarm.alarm, alarm.memberID)
@@ -949,7 +1012,8 @@ class Etcd3Client(object):
                                                   member_id,
                                                   'no space')
         alarm_response = self.maintenancestub.Alarm(alarm_request,
-                                                    self.timeout)
+                                                    metadata=self._metadata,
+                                                    timeout=self.timeout)
 
         return [Alarm(alarm.alarm, alarm.memberID)
                 for alarm in alarm_response.alarms]
