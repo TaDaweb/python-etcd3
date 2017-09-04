@@ -105,9 +105,8 @@ class Etcd3Client(object):
                  ca_cert=None, cert_key=None, cert_cert=None,
                  timeout=None):
         self._url = '{host}:{port}'.format(host=host, port=port)
-        self.uses_secure_channel, self.channel = self._create_channel(ca_cert,
-                                                                      cert_key,
-                                                                      cert_cert)
+        self.uses_secure_channel, self.channel = \
+            self._create_channel(ca_cert, cert_key, cert_cert)
         self._credentials = None
         self._metadata = []
         self.timeout = timeout
@@ -163,16 +162,16 @@ class Etcd3Client(object):
     @_handle_errors
     def enable_auth(self):
         auth_enable_request = etcdrpc.AuthEnableRequest()
-        auth_enable_response = self.authstub.AuthEnable(auth_enable_request,
-                                                        metadata=self._metadata,
-                                                        timeout=self.timeout)
+        self.authstub.AuthEnable(auth_enable_request,
+                                 metadata=self._metadata,
+                                 timeout=self.timeout)
 
     @_handle_errors
     def disable_auth(self):
         auth_disable_request = etcdrpc.AuthDisableRequest()
-        auth_disable_response = self.authstub.AuthDisable(auth_disable_request,
-                                                          metadata=self._metadata,
-                                                          timeout=self.timeout)
+        self.authstub.AuthDisable(auth_disable_request,
+                                  metadata=self._metadata,
+                                  timeout=self.timeout)
 
     @_handle_errors
     def authenticate(self, username=None, password=None):
@@ -182,17 +181,25 @@ class Etcd3Client(object):
                              'must be specified')
         cred_user = utils.to_bytes(username)
         cred_pass = utils.to_bytes(password)
-        authenticate_request = etcdrpc.AuthenticateRequest(name=cred_user, password=cred_pass)
-        authenticate_response = self.authstub.Authenticate(authenticate_request,
-                                                           timeout=self.timeout)
+        authenticate_request = etcdrpc.AuthenticateRequest(name=cred_user,
+                                                           password=cred_pass)
+        authenticate_response = \
+            self.authstub.Authenticate(authenticate_request,
+                                       timeout=self.timeout)
         self._metadata.append(('token', authenticate_response.token))
+        # credentials is set but not currently used.
+        # After creating and setting it into the calls is not working.
+        self._credentials = grpc.metadata_call_credentials(
+            SimpleTokenCallCredentials(authenticate_response.token))
 
     @_handle_errors
     def add_user(self, username, password):
-        auth_user_add_request = etcdrpc.AuthUserAddRequest(name=username, password=password)
-        auth_user_add_response = self.authstub.UserAdd(auth_user_add_request,
-                                                       metadata=self._metadata,
-                                                       timeout=self.timeout)
+        auth_user_add_request = etcdrpc.AuthUserAddRequest(name=username,
+                                                           password=password)
+        self.authstub.UserAdd(auth_user_add_request,
+                              metadata=self._metadata,
+                              timeout=self.timeout)
+
         return users.User(name=username)
 
     @_handle_errors
@@ -205,55 +212,60 @@ class Etcd3Client(object):
                           roles=auth_user_get_response.roles)
 
     @_handle_errors
-    def list_user(self, token):
-        #cred = grpc.metadata_call_credentials(SimpleTokenCallCredentials(self.token))
+    def list_user(self):
         auth_user_list_request = etcdrpc.AuthUserListRequest()
-        auth_user_list_response = self.authstub.UserList(auth_user_list_request,
-                                                         metadata=self._metadata,
-                                                         timeout=self.timeout)
+        auth_user_list_response = self.authstub.UserList(
+            auth_user_list_request,
+            metadata=self._metadata,
+            timeout=self.timeout)
         for user in auth_user_list_response.users:
             yield users.User(user)
 
     @_handle_errors
     def delete_user(self, username):
         auth_user_delete_request = etcdrpc.AuthUserDeleteRequest(name=username)
-        auth_user_delete_response = self.authstub.UserDelete(auth_user_delete_request,
-                                                             metadata=self._metadata,
-                                                             timeout=self.timeout)
+        self.authstub.UserDelete(auth_user_delete_request,
+                                 metadata=self._metadata,
+                                 timeout=self.timeout)
 
     @_handle_errors
     def change_password_user(self, username, password):
-        auth_user_change_password_request = etcdrpc.AuthUserChangePasswordRequest(name=username,
-                                                                                  password=password)
-        auth_user_change_password_response = self.authstub.UserChangePassword(auth_user_change_password_request,
-                                                                              metadata=self._metadata,
-                                                                              timeout=self.timeout)
+        auth_user_change_password_request = \
+            etcdrpc.AuthUserChangePasswordRequest(name=username,
+                                                  password=password)
+        self.authstub.UserChangePassword(auth_user_change_password_request,
+                                         metadata=self._metadata,
+                                         timeout=self.timeout)
         return self.get_user(username)
 
     @_handle_errors
     def grant_role_user(self, username, rolename):
-        auth_user_grant_role_request = etcdrpc.AuthUserGrantRoleRequest(user=username,
-                                                                        role=rolename)
-        auth_user_grant_role_response = self.authstub.UserGrantRole(auth_user_grant_role_request,
-                                                                    metadata=self._metadata,
-                                                                    timeout=self.timeout)
+        auth_user_grant_role_request = \
+            etcdrpc.AuthUserGrantRoleRequest(user=username,
+                                             role=rolename)
+        auth_user_grant_role_response = \
+            self.authstub.UserGrantRole(auth_user_grant_role_request,
+                                        metadata=self._metadata,
+                                        timeout=self.timeout)
+        print(auth_user_grant_role_response)
         return self.get_user(username)
 
     @_handle_errors
     def revoke_role_user(self, username, rolename):
-        auth_user_revoke_role_request = etcdrpc.AuthUserRevokeRoleRequest(name=username,
-                                                                          role=rolename)
-        auth_user_revoke_role_response = self.authstub.UserRevokeRole(auth_user_revoke_role_request,
-                                                                      metadata=self._metadata,
-                                                                      timeout=self.timeout)
+        auth_user_revoke_role_request = \
+            etcdrpc.AuthUserRevokeRoleRequest(name=username,
+                                              role=rolename)
+        self.authstub.UserRevokeRole(auth_user_revoke_role_request,
+                                     metadata=self._metadata,
+                                     timeout=self.timeout)
         return self.get_user(username)
 
     @_handle_errors
     def add_role(self, role_name):
         auth_role_add_request = etcdrpc.AuthRoleAddRequest(name=role_name)
-        auth_role_add_response = self.authstub.RoleAdd(auth_role_add_request,
-                                                       metadata=self._metadata,
-                                                       timeout=self.timeout)
+        self.authstub.RoleAdd(auth_role_add_request,
+                              metadata=self._metadata,
+                              timeout=self.timeout)
         return roles.Role(role_name)
 
     @_handle_errors
@@ -262,24 +274,25 @@ class Etcd3Client(object):
         auth_role_get_response = self.authstub.RoleGet(auth_role_get_request,
                                                        metadata=self._metadata,
                                                        timeout=self.timeout)
-        return roles.Role(role_name,
-                          auth_role_get_response.perm)
+        return roles.Role(role_name, auth_role_get_response.perm)
 
     @_handle_errors
     def list_role(self):
         auth_role_list_request = etcdrpc.AuthRoleListRequest()
-        auth_role_list_response = self.authstub.RoleList(auth_role_list_request,
-                                                         metadata=self._metadata,
-                                                         timeout=self.timeout)
+        auth_role_list_response = \
+            self.authstub.RoleList(auth_role_list_request,
+                                   metadata=self._metadata,
+                                   timeout=self.timeout)
         for role in auth_role_list_response.roles:
             yield roles.Role(role)
 
     @_handle_errors
     def delete_role(self, role_name):
-        auth_role_delete_request = etcdrpc.AuthRoleDeleteRequest(role=role_name)
-        auth_role_delete_response = self.authstub.RoleDelete(auth_role_delete_request,
-                                                             metadata=self._metadata,
-                                                             timeout=self.timeout)
+        auth_role_delete_request = \
+            etcdrpc.AuthRoleDeleteRequest(role=role_name)
+        self.authstub.RoleDelete(auth_role_delete_request,
+                                 metadata=self._metadata,
+                                 timeout=self.timeout)
 
     def _build_role_permission(self, key,
                                perm_type='read',
@@ -287,12 +300,12 @@ class Etcd3Client(object):
         permission = etcdrpc.Permission()
 
         permission.key = key
-        #permission.range_end = range_end
+        # permission.range_end = range_end
 
         if perm_type == 'read':
-            permission.permType = etcdrpc.Permission.Type.READ
+            permission.permType = etcdrpc.Permission.READ
         elif perm_type == 'write':
-            permission.permType = etcdrpc.Permission.Type.WRITE
+            permission.permType = etcdrpc.Permission.WRITE
         elif perm_type == 'readwrite':
             permission.permType = etcdrpc.Permission.READWRITE
         else:
@@ -303,20 +316,22 @@ class Etcd3Client(object):
     @_handle_errors
     def grant_permission_role(self, role_name, key, perm_type='read'):
         permission = self._build_role_permission(key, perm_type=perm_type)
-        auth_role_grant_permission_request = etcdrpc.AuthRoleGrantPermissionRequest(name=role_name,
-                                                                                    perm=permission)
-        auth_role_grant_permission_response = self.authstub.RoleGrantPermission(auth_role_grant_permission_request,
-                                                                                metadata=self._metadata,
-                                                                                timeout=self.timeout)
+        auth_role_grant_perm_request = \
+            etcdrpc.AuthRoleGrantPermissionRequest(name=role_name,
+                                                   perm=permission)
+        self.authstub.RoleGrantPermission(auth_role_grant_perm_request,
+                                          metadata=self._metadata,
+                                          timeout=self.timeout)
         return self.get_role(role_name)
 
     @_handle_errors
     def revoke_permission_role(self, role_name, key, range_end):
-        auth_role_revoke_permission_request = etcdrpc.AuthRoleRevokePermissionRequest(role=role_name,
-                                                                                      key=key)
-        auth_role_revoke_permission_response = self.authstub.RoleRevokePermission(auth_role_revoke_permission_request,
-                                                                                  metadata=self._metadata,
-                                                                                  timeout=self.timeout)
+        auth_role_revoke_perm_request = \
+            etcdrpc.AuthRoleRevokePermissionRequest(role=role_name,
+                                                    key=key)
+        self.authstub.RoleRevokePermission(auth_role_revoke_perm_request,
+                                           metadata=self._metadata,
+                                           timeout=self.timeout)
 
     def _build_get_range_request(self, key,
                                  range_end=None,
@@ -777,9 +792,10 @@ class Etcd3Client(object):
         :rtype: :class:`.Lease`
         """
         lease_grant_request = etcdrpc.LeaseGrantRequest(TTL=ttl, ID=lease_id)
-        lease_grant_response = self.leasestub.LeaseGrant(lease_grant_request,
-                                                         metadata=self._metadata,
-                                                         timeout=self.timeout)
+        lease_grant_response = \
+            self.leasestub.LeaseGrant(lease_grant_request,
+                                      metadata=self._metadata,
+                                      timeout=self.timeout)
         return leases.Lease(lease_id=lease_grant_response.ID,
                             ttl=lease_grant_response.TTL,
                             etcd_client=self)
@@ -840,9 +856,10 @@ class Etcd3Client(object):
         """
         member_add_request = etcdrpc.MemberAddRequest(peerURLs=urls)
 
-        member_add_response = self.clusterstub.MemberAdd(member_add_request,
-                                                         metadata=self._metadata,
-                                                         timeout=self.timeout)
+        member_add_response = \
+            self.clusterstub.MemberAdd(member_add_request,
+                                       metadata=self._metadata,
+                                       timeout=self.timeout)
         member = member_add_response.member
         return etcd3.members.Member(member.ID,
                                     member.name,
@@ -886,9 +903,10 @@ class Etcd3Client(object):
 
         """
         member_list_request = etcdrpc.MemberListRequest()
-        member_list_response = self.clusterstub.MemberList(member_list_request,
-                                                           metadata=self._metadata,
-                                                           timeout=self.timeout)
+        member_list_response = \
+            self.clusterstub.MemberList(member_list_request,
+                                        metadata=self._metadata,
+                                        timeout=self.timeout)
 
         for member in member_list_response.members:
             yield etcd3.members.Member(member.ID,
