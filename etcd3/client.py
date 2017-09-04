@@ -27,9 +27,8 @@ _EXCEPTIONS_BY_CODE = {
 
 
 def _translate_exception(exc):
-    print exc._state.details
     code = exc.code()
-    exception = _EXCEPTIONS_BY_CODE.get(code)
+    exception = _EXCEPTIONS_BY_CODE.get(code)(exc._state.details)
     if exception is None:
         raise
     raise exception
@@ -243,11 +242,9 @@ class Etcd3Client(object):
         auth_user_grant_role_request = \
             etcdrpc.AuthUserGrantRoleRequest(user=username,
                                              role=rolename)
-        auth_user_grant_role_response = \
-            self.authstub.UserGrantRole(auth_user_grant_role_request,
-                                        metadata=self._metadata,
-                                        timeout=self.timeout)
-        print(auth_user_grant_role_response)
+        self.authstub.UserGrantRole(auth_user_grant_role_request,
+                                    metadata=self._metadata,
+                                    timeout=self.timeout)
         return self.get_user(username)
 
     @_handle_errors
