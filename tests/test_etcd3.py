@@ -78,6 +78,11 @@ class TestEtcd3(object):
         assert value is None
         assert meta is None
 
+    def test_add_user(self, etcd):
+        etcd.add_user('test', 'testpass')
+        added = etcdctl('user', 'get', 'test')
+        assert "User: test\nRoles:" == added
+
     @given(characters(blacklist_categories=['Cs', 'Cc']))
     def test_get_key(self, etcd, string):
         etcdctl('put', '/doot/a_key', string)

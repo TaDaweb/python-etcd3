@@ -89,7 +89,7 @@ class Alarm(object):
 
 
 class SimpleTokenCallCredentials(grpc.AuthMetadataPlugin):
-    """Metadata wrapper for raw access token credentials"""
+    """Metadata wrapper for raw access token credentials."""
 
     def __init__(self, access_token):
         self._access_token = access_token
@@ -204,7 +204,7 @@ class Etcd3Client(object):
     @_handle_errors
     def add_user(self, username, password):
         """
-        Add a user in the Etcd cluster
+        Add a user in the Etcd cluster.
 
         example usage:
 
@@ -234,7 +234,7 @@ class Etcd3Client(object):
     @_handle_errors
     def get_user(self, username):
         """
-        Get the user information with roles
+        Get the user information with roles.
 
         :param username: the name of the user
         :type username: str
@@ -251,7 +251,7 @@ class Etcd3Client(object):
     @_handle_errors
     def list_user(self):
         """
-        Returns an iterable with the list of all users
+        Return an iterable with the list of all users.
 
         :returns: a generator with :class:`User`
         """
@@ -266,7 +266,7 @@ class Etcd3Client(object):
     @_handle_errors
     def delete_user(self, username):
         """
-        Delete an user from the cluster
+        Delete an user from the cluster.
 
         :param username: the name of the user to be removed
         :type username: str
@@ -279,7 +279,7 @@ class Etcd3Client(object):
     @_handle_errors
     def change_password_user(self, username, password):
         """
-        Update the password for a user
+        Update the password for a user.
 
         :param username: the name of the user
         :type username: str
@@ -299,7 +299,7 @@ class Etcd3Client(object):
     @_handle_errors
     def grant_role_user(self, username, rolename):
         """
-        Grant a role to an user
+        Grant a role to an user.
 
         :param username: the name of the user to be modified
         :type username: str
@@ -319,7 +319,7 @@ class Etcd3Client(object):
     @_handle_errors
     def revoke_role_user(self, username, rolename):
         """
-        Revoke a role from an user
+        Revoke a role from an user.
 
         :param username: the name of the user to be modified
         :type username: str
@@ -339,7 +339,7 @@ class Etcd3Client(object):
     @_handle_errors
     def add_role(self, rolename):
         """
-        Add a role to the Etcd cluster
+        Add a role to the Etcd cluster.
 
         :param rolename: the name of the new role to be added. must be unique
         :type rolename: str
@@ -355,7 +355,7 @@ class Etcd3Client(object):
     @_handle_errors
     def get_role(self, rolename):
         """
-        Get a role and its information in Etcd cluster
+        Get a role and its information in Etcd cluster.
 
         :param rolename: the name of the role to be fetchec. It must exist
         :type rolename: str
@@ -371,7 +371,7 @@ class Etcd3Client(object):
     @_handle_errors
     def list_role(self):
         """
-        List all the roles into the cluster
+        List all the roles into the cluster.
 
         :returns: a generator with :class:`Role`
         """
@@ -386,7 +386,7 @@ class Etcd3Client(object):
     @_handle_errors
     def delete_role(self, rolename):
         """
-        Delete a role from the cluster
+        Delete a role from the cluster.
 
         :param rolename: the name of the role to be removed
         :type rolename: str
@@ -420,7 +420,7 @@ class Etcd3Client(object):
     @_handle_errors
     def grant_permission_role(self, rolename, key, perm_type='read'):
         """
-        Grant a permission on a role
+        Grant a permission on a role.
 
         :param rolename: the name of the role to be changed
         :type rolename: str
@@ -444,7 +444,7 @@ class Etcd3Client(object):
     @_handle_errors
     def revoke_permission_role(self, rolename, key, range_end):
         """
-        Revoke a permission on a role
+        Revoke a permission on a role.
 
         :param rolename: the name of the role to be changed
         :type rolename: str

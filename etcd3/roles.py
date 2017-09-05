@@ -15,12 +15,12 @@ class Role(object):
         self._etcd_client = etcd_client
 
     def delete(self):
-        """Delete role from Etcd"""
+        """Delete role from Etcd."""
         self._etcd_client.delete_role(self.name)
 
     def grant_permission(self, key, perm_type='read'):
         """
-        Grant permission to this role
+        Grant permission to this role.
 
         :param key: The key path where role can have perms on
         :type key: str
@@ -32,7 +32,7 @@ class Role(object):
 
     def revoke_permission(self, key, range_end):
         """
-        Revoke permission from one role
+        Revoke permission from one role.
 
         :param key: The key path in Etcd
         :type key: str
