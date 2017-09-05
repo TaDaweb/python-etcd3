@@ -403,7 +403,8 @@ class Etcd3Client(object):
         permission = etcdrpc.Permission()
 
         permission.key = key
-        # permission.range_end = range_end
+        if range_end is not None:
+            permission.range_end = utils.to_bytes(range_end)
 
         if perm_type == 'read':
             permission.permType = etcdrpc.Permission.READ
