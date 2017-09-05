@@ -52,5 +52,5 @@ class User(object):
 
     def __str__(self):
         return ('User name: {name}\n'
-                '  Roles: [{roles}]'.format(name=self.name,
-                                            roles=', '.join(self.roles)))
+                '    Roles: [{roles}]'.format(name=self.name,
+                                              roles=', '.join(self.roles)))

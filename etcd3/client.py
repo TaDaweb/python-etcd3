@@ -160,6 +160,7 @@ class Etcd3Client(object):
 
     @_handle_errors
     def enable_auth(self):
+        """Enable Authentication in Etcd."""
         auth_enable_request = etcdrpc.AuthEnableRequest()
         self.authstub.AuthEnable(auth_enable_request,
                                  metadata=self._metadata,
@@ -167,6 +168,7 @@ class Etcd3Client(object):
 
     @_handle_errors
     def disable_auth(self):
+        """Disable Authentication in Etcd."""
         auth_disable_request = etcdrpc.AuthDisableRequest()
         self.authstub.AuthDisable(auth_disable_request,
                                   metadata=self._metadata,
@@ -174,6 +176,14 @@ class Etcd3Client(object):
 
     @_handle_errors
     def authenticate(self, username=None, password=None):
+        """
+        Authenticate against the Etcd cluster.
+
+        :param username: the name of the authentication user
+        :type username: str
+        :param password: the password of the the authentication user
+        :type password: str
+        """
         creds = [c is not None for c in (username, password)]
         if not any(creds):
             raise ValueError('To Authenticate the username and password '
@@ -193,6 +203,26 @@ class Etcd3Client(object):
 
     @_handle_errors
     def add_user(self, username, password):
+        """
+        Add a user in the Etcd cluster
+
+        example usage:
+
+        .. code-block:: python
+
+            >>> import etcd3
+            >>> etcd = etcd3.client()
+            >>> etcd.add_user('root', 'testpass')
+            User Name: root
+                Roles: []
+
+        :param username: the name of the user to be created
+        :type username: str
+        :param password: the password for the users
+        :type password: str
+        :returns: the user just created
+        :rtype: :class:`User`
+        """
         auth_user_add_request = etcdrpc.AuthUserAddRequest(name=username,
                                                            password=password)
         self.authstub.UserAdd(auth_user_add_request,
@@ -203,6 +233,14 @@ class Etcd3Client(object):
 
     @_handle_errors
     def get_user(self, username):
+        """
+        Get the user information with roles
+
+        :param username: the name of the user
+        :type username: str
+        :returns: the user object
+        :rtype: :class:`User`
+        """
         auth_user_get_request = etcdrpc.AuthUserGetRequest(name=username)
         auth_user_get_response = self.authstub.UserGet(auth_user_get_request,
                                                        metadata=self._metadata,
@@ -212,6 +250,11 @@ class Etcd3Client(object):
 
     @_handle_errors
     def list_user(self):
+        """
+        Returns an iterable with the list of all users
+
+        :returns: a generator with :class:`User`
+        """
         auth_user_list_request = etcdrpc.AuthUserListRequest()
         auth_user_list_response = self.authstub.UserList(
             auth_user_list_request,
@@ -222,6 +265,12 @@ class Etcd3Client(object):
 
     @_handle_errors
     def delete_user(self, username):
+        """
+        Delete an user from the cluster
+
+        :param username: the name of the user to be removed
+        :type username: str
+        """
         auth_user_delete_request = etcdrpc.AuthUserDeleteRequest(name=username)
         self.authstub.UserDelete(auth_user_delete_request,
                                  metadata=self._metadata,
@@ -229,6 +278,16 @@ class Etcd3Client(object):
 
     @_handle_errors
     def change_password_user(self, username, password):
+        """
+        Update the password for a user
+
+        :param username: the name of the user
+        :type username: str
+        :param password: the new password for the user
+        :type password: str
+        :returns: the user object
+        :rtype: :class:`User`
+        """
         auth_user_change_password_request = \
             etcdrpc.AuthUserChangePasswordRequest(name=username,
                                                   password=password)
@@ -239,6 +298,16 @@ class Etcd3Client(object):
 
     @_handle_errors
     def grant_role_user(self, username, rolename):
+        """
+        Grant a role to an user
+
+        :param username: the name of the user to be modified
+        :type username: str
+        :param rolename: the name of the role to be added to the user
+        :type rolename: str
+        :returns: the user object
+        :rtype: :class:`User`
+        """
         auth_user_grant_role_request = \
             etcdrpc.AuthUserGrantRoleRequest(user=username,
                                              role=rolename)
@@ -249,6 +318,16 @@ class Etcd3Client(object):
 
     @_handle_errors
     def revoke_role_user(self, username, rolename):
+        """
+        Revoke a role from an user
+
+        :param username: the name of the user to be modified
+        :type username: str
+        :param rolename: the name of the role to be added to the user
+        :type rolename: str
+        :returns: the user object
+        :rtype: :class:`User`
+        """
         auth_user_revoke_role_request = \
             etcdrpc.AuthUserRevokeRoleRequest(name=username,
                                               role=rolename)
@@ -258,23 +337,44 @@ class Etcd3Client(object):
         return self.get_user(username)
 
     @_handle_errors
-    def add_role(self, role_name):
-        auth_role_add_request = etcdrpc.AuthRoleAddRequest(name=role_name)
+    def add_role(self, rolename):
+        """
+        Add a role to the Etcd cluster
+
+        :param rolename: the name of the new role to be added. must be unique
+        :type rolename: str
+        :returns: the role object
+        :rtype: :class:`Role`
+        """
+        auth_role_add_request = etcdrpc.AuthRoleAddRequest(name=rolename)
         self.authstub.RoleAdd(auth_role_add_request,
                               metadata=self._metadata,
                               timeout=self.timeout)
-        return roles.Role(role_name)
+        return roles.Role(rolename)
 
     @_handle_errors
-    def get_role(self, role_name):
-        auth_role_get_request = etcdrpc.AuthRoleGetRequest(role=role_name)
+    def get_role(self, rolename):
+        """
+        Get a role and its information in Etcd cluster
+
+        :param rolename: the name of the role to be fetchec. It must exist
+        :type rolename: str
+        :returns: the role object
+        :rtype: :class:`Role`
+        """
+        auth_role_get_request = etcdrpc.AuthRoleGetRequest(role=rolename)
         auth_role_get_response = self.authstub.RoleGet(auth_role_get_request,
                                                        metadata=self._metadata,
                                                        timeout=self.timeout)
-        return roles.Role(role_name, auth_role_get_response.perm)
+        return roles.Role(rolename, auth_role_get_response.perm)
 
     @_handle_errors
     def list_role(self):
+        """
+        List all the roles into the cluster
+
+        :returns: a generator with :class:`Role`
+        """
         auth_role_list_request = etcdrpc.AuthRoleListRequest()
         auth_role_list_response = \
             self.authstub.RoleList(auth_role_list_request,
@@ -284,9 +384,15 @@ class Etcd3Client(object):
             yield roles.Role(role)
 
     @_handle_errors
-    def delete_role(self, role_name):
+    def delete_role(self, rolename):
+        """
+        Delete a role from the cluster
+
+        :param rolename: the name of the role to be removed
+        :type rolename: str
+        """
         auth_role_delete_request = \
-            etcdrpc.AuthRoleDeleteRequest(role=role_name)
+            etcdrpc.AuthRoleDeleteRequest(role=rolename)
         self.authstub.RoleDelete(auth_role_delete_request,
                                  metadata=self._metadata,
                                  timeout=self.timeout)
@@ -311,20 +417,41 @@ class Etcd3Client(object):
         return permission
 
     @_handle_errors
-    def grant_permission_role(self, role_name, key, perm_type='read'):
+    def grant_permission_role(self, rolename, key, perm_type='read'):
+        """
+        Grant a permission on a role
+
+        :param rolename: the name of the role to be changed
+        :type rolename: str
+        :param key: the key path of the Etcd on which the permission
+                    must be effective
+        :type key: str
+        :param perm_type: the permission type, one of 'read', 'write',
+                          'readwrite'
+        :type perm_type: str
+        :returns: the role with the permissions :class:`Role`
+        """
         permission = self._build_role_permission(key, perm_type=perm_type)
         auth_role_grant_perm_request = \
-            etcdrpc.AuthRoleGrantPermissionRequest(name=role_name,
+            etcdrpc.AuthRoleGrantPermissionRequest(name=rolename,
                                                    perm=permission)
         self.authstub.RoleGrantPermission(auth_role_grant_perm_request,
                                           metadata=self._metadata,
                                           timeout=self.timeout)
-        return self.get_role(role_name)
+        return self.get_role(rolename)
 
     @_handle_errors
-    def revoke_permission_role(self, role_name, key, range_end):
+    def revoke_permission_role(self, rolename, key, range_end):
+        """
+        Revoke a permission on a role
+
+        :param rolename: the name of the role to be changed
+        :type rolename: str
+        :param key: the key path of the Etcd
+        :type key: str
+        """
         auth_role_revoke_perm_request = \
-            etcdrpc.AuthRoleRevokePermissionRequest(role=role_name,
+            etcdrpc.AuthRoleRevokePermissionRequest(role=rolename,
                                                     key=key)
         self.authstub.RoleRevokePermission(auth_role_revoke_perm_request,
                                            metadata=self._metadata,
