@@ -418,16 +418,21 @@ class Etcd3Client(object):
         return permission
 
     @_handle_errors
-    def grant_permission_role(self, rolename, key,
+    def grant_role_permission(self, rolename, start_key, end_key=None,
                               perm_type='read', prefix=False):
         """
         Grant a permission on a role.
+        When the end_key is specified then the permission is granted on
+        a range. If the prefix is specified it takes precedence over the
+        end_key.
 
         :param rolename: the name of the role to be changed
         :type rolename: str
-        :param key: the key path of the Etcd on which the permission
-                    must be effective
-        :type key: str
+        :param start_key: the key path of the Etcd on which the permission
+                          must be effective
+        :type start_key: str
+        :param end_key: the end key of the range
+        :type end_key: str
         :param perm_type: the permission type, one of 'read', 'write',
                           'readwrite'
         :type perm_type: str
@@ -435,16 +440,16 @@ class Etcd3Client(object):
         :type prefix: bool
         :returns: the role with the permissions :class:`Role`
         """
-        if key == '':
-            range_end = "\0"
+        if start_key == '':
+            start_key = '\0'
+            end_key = '\0'
         else:
             if prefix:
-                range_end = key[:-1] + chr(ord(key[-1]) + 1)
-            else:
-                range_end = None
-        permission = self._build_role_permission(key,
+                end_key = utils.increment_last_byte(utils.to_bytes(start_key))
+
+        permission = self._build_role_permission(start_key,
                                                  perm_type=perm_type,
-                                                 range_end=range_end)
+                                                 range_end=end_key)
         auth_role_grant_perm_request = \
             etcdrpc.AuthRoleGrantPermissionRequest(name=rolename,
                                                    perm=permission)
@@ -454,18 +459,32 @@ class Etcd3Client(object):
         return self.get_role(rolename)
 
     @_handle_errors
-    def revoke_permission_role(self, rolename, key, range_end):
+    def revoke_role_permission(self, rolename, key, end_key='',
+                               prefix=False):
         """
         Revoke a permission on a role.
+        The prefix has precedence over end_key.
 
         :param rolename: the name of the role to be changed
         :type rolename: str
         :param key: the key path of the Etcd
         :type key: str
+        :param end_key: the end key if a range must be revoked
+        :type end_key: str
+        :param prefix: if the end_key must be a prefix or not
+        :type prefix: bool
         """
+        start_key = key
+        if start_key == '':
+            start_key = '\0'
+            end_key = '\0'
+        else:
+            if prefix:
+                end_key = utils.increment_last_byte(utils.to_bytes(start_key))
         auth_role_revoke_perm_request = \
             etcdrpc.AuthRoleRevokePermissionRequest(role=rolename,
-                                                    key=key)
+                                                    key=start_key,
+                                                    range_end=end_key)
         self.authstub.RoleRevokePermission(auth_role_revoke_perm_request,
                                            metadata=self._metadata,
                                            timeout=self.timeout)
