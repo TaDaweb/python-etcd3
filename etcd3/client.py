@@ -418,7 +418,8 @@ class Etcd3Client(object):
         return permission
 
     @_handle_errors
-    def grant_permission_role(self, rolename, key, perm_type='read'):
+    def grant_permission_role(self, rolename, key,
+                              perm_type='read', prefix=False):
         """
         Grant a permission on a role.
 
@@ -430,9 +431,20 @@ class Etcd3Client(object):
         :param perm_type: the permission type, one of 'read', 'write',
                           'readwrite'
         :type perm_type: str
+        :param prefix: apply to the key as a prefix
+        :type prefix: bool
         :returns: the role with the permissions :class:`Role`
         """
-        permission = self._build_role_permission(key, perm_type=perm_type)
+        if key == '':
+            range_end = "\0"
+        else:
+            if prefix:
+                range_end = key[:-1] + chr(ord(key[-1]) + 1)
+            else:
+                range_end = None
+        permission = self._build_role_permission(key,
+                                                 perm_type=perm_type,
+                                                 range_end=range_end)
         auth_role_grant_perm_request = \
             etcdrpc.AuthRoleGrantPermissionRequest(name=rolename,
                                                    perm=permission)
