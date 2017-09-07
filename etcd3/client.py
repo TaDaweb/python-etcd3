@@ -458,7 +458,7 @@ class Etcd3Client(object):
 
         permission = self._build_role_permission(start_key,
                                                  perm_type=perm_type,
-                                                 range_end=end_key)
+                                                 range_end=range_end)
         auth_role_grant_perm_request = \
             etcdrpc.AuthRoleGrantPermissionRequest(name=rolename,
                                                    perm=permission)
