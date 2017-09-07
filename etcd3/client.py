@@ -437,7 +437,7 @@ class Etcd3Client(object):
         return end_key
 
     @_handle_errors
-    def grant_role_permission(self, rolename, start_key, end_key=None,
+    def grant_role_permission(self, rolename, key, end_key=None,
                               perm_type='read', prefix=False, from_key=False):
         """
         Grant a permission on a role.
@@ -458,10 +458,10 @@ class Etcd3Client(object):
         :type from_key: bool
         :returns: the role with the permissions :class:`Role`
         """
-        range_end = self._range_end_from_perm_flag(start_key, end_key,
+        range_end = self._range_end_from_perm_flag(key, end_key,
                                                    prefix, from_key)
 
-        permission = self._build_role_permission(start_key,
+        permission = self._build_role_permission(key,
                                                  perm_type=perm_type,
                                                  range_end=range_end)
         auth_role_grant_perm_request = \
@@ -489,11 +489,11 @@ class Etcd3Client(object):
         :param from_key: apply to key as an empty upper bound
         :type from_key: bool
         """
-        range_end = self._range_end_from_perm_flag(start_key, end_key,
+        range_end = self._range_end_from_perm_flag(key, end_key,
                                                    prefix, from_key)
         auth_role_revoke_perm_request = \
             etcdrpc.AuthRoleRevokePermissionRequest(role=rolename,
-                                                    key=start_key,
+                                                    key=key,
                                                     range_end=range_end)
         self.authstub.RoleRevokePermission(auth_role_revoke_perm_request,
                                            metadata=self._metadata,
