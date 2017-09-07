@@ -422,6 +422,12 @@ class Etcd3Client(object):
         if prefix and from_key:
             raise ValueError('prefix and from_key are mutually exclusive')
 
+        if end_key is not None and (prefix or from_key):
+            if prefix:
+                raise ValueError('unexpected end_key with prefix flag')
+            if from_key:
+                raise ValueError('unexpected from_key with prefix flag')
+
         if prefix:
             return utils.increment_last_byte(utils.to_bytes(start_key))
         if from_key:
@@ -435,9 +441,6 @@ class Etcd3Client(object):
                               perm_type='read', prefix=False, from_key=False):
         """
         Grant a permission on a role.
-        When the end_key is specified then the permission is granted on
-        a range. If the prefix is specified it takes precedence over the
-        end_key.
 
         :param rolename: the name of the role to be changed
         :type rolename: str
@@ -451,6 +454,8 @@ class Etcd3Client(object):
         :type perm_type: str
         :param prefix: apply to the key as a prefix
         :type prefix: bool
+        :param from_key: apply to key as an empty upper bound
+        :type from_key: bool
         :returns: the role with the permissions :class:`Role`
         """
         range_end = self._range_end_from_perm_flag(start_key, end_key,
@@ -468,11 +473,10 @@ class Etcd3Client(object):
         return self.get_role(rolename)
 
     @_handle_errors
-    def revoke_role_permission(self, rolename, key, end_key='',
-                               prefix=False):
+    def revoke_role_permission(self, rolename, key, end_key=None,
+                               prefix=False, from_key=False):
         """
         Revoke a permission on a role.
-        The prefix has precedence over end_key.
 
         :param rolename: the name of the role to be changed
         :type rolename: str
@@ -480,20 +484,17 @@ class Etcd3Client(object):
         :type key: str
         :param end_key: the end key if a range must be revoked
         :type end_key: str
-        :param prefix: if the end_key must be a prefix or not
+        :param prefix: apply to the key as a prefix
         :type prefix: bool
+        :param from_key: apply to key as an empty upper bound
+        :type from_key: bool
         """
-        start_key = key
-        if start_key == '':
-            start_key = '\0'
-            end_key = '\0'
-        else:
-            if prefix:
-                end_key = utils.increment_last_byte(utils.to_bytes(start_key))
+        range_end = self._range_end_from_perm_flag(start_key, end_key,
+                                                   prefix, from_key)
         auth_role_revoke_perm_request = \
             etcdrpc.AuthRoleRevokePermissionRequest(role=rolename,
                                                     key=start_key,
-                                                    range_end=end_key)
+                                                    range_end=range_end)
         self.authstub.RoleRevokePermission(auth_role_revoke_perm_request,
                                            metadata=self._metadata,
                                            timeout=self.timeout)
