@@ -417,9 +417,22 @@ class Etcd3Client(object):
                              '"write", "readwrite"')
         return permission
 
+    def _range_end_from_perm_flag(self, start_key, end_key,
+                                  prefix=False, from_key=False):
+        if prefix and from_key:
+            raise ValueError('prefix and from_key are mutually exclusive')
+
+        if prefix:
+            return utils.increment_last_byte(utils.to_bytes(start_key))
+        if from_key:
+            return "\x00"
+        if end_key is None:
+            return ''
+        return end_key
+
     @_handle_errors
     def grant_role_permission(self, rolename, start_key, end_key=None,
-                              perm_type='read', prefix=False):
+                              perm_type='read', prefix=False, from_key=False):
         """
         Grant a permission on a role.
         When the end_key is specified then the permission is granted on
@@ -440,12 +453,8 @@ class Etcd3Client(object):
         :type prefix: bool
         :returns: the role with the permissions :class:`Role`
         """
-        if start_key == '':
-            start_key = '\0'
-            end_key = '\0'
-        else:
-            if prefix:
-                end_key = utils.increment_last_byte(utils.to_bytes(start_key))
+        range_end = self._range_end_from_perm_flag(start_key, end_key,
+                                                   prefix, from_key)
 
         permission = self._build_role_permission(start_key,
                                                  perm_type=perm_type,
