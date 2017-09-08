@@ -36,7 +36,7 @@ class Role(object):
         :param from_key: apply to key as an empty upper bound
         :type from_key: bool
         """
-        self.perm = self._etcd_client.grant_permission_role(
+        self.perm = self._etcd_client.grant_role_permission(
             self.name, key, perm_type=perm_type,
             prefix=prefix, from_key=from_key).perm
 
@@ -54,7 +54,7 @@ class Role(object):
         :param from_key: apply to key as an empty upper bound
         :type from_key: bool
         """
-        self._etcd_client.revoke_permission_role(self.name, key,
+        self._etcd_client.revoke_role_permission(self.name, key,
                                                  end_key=end_key,
                                                  prefix=prefix,
                                                  from_key=from_key)
