@@ -26,7 +26,7 @@ class User(object):
         :param role: The name of the role to be granted
         :type role: str
         """
-        self._etcd_client.grant_role_user(self.name, role)
+        self.roles = self._etcd_client.grant_role_user(self.name, role).roles
 
     def revoke_role(self, role):
         """
@@ -35,7 +35,7 @@ class User(object):
         :param role: The name of the role to be revoked
         :type role: str
         """
-        self._etcd_client.revoke_role_user(self.name, role)
+        self.roles = self._etcd_client.revoke_role_user(self.name, role).roles
 
     def delete(self):
         """Remove the user from Etcd."""
