@@ -37,7 +37,7 @@ class Role(object):
         :type from_key: bool
         """
         self.perm = self._etcd_client.grant_role_permission(
-            self.name, key, perm_type=perm_type,
+            self.name, key, end_key=end_key, perm_type=perm_type,
             prefix=prefix, from_key=from_key).perm
 
     def revoke_permission(self, key, end_key=None,
