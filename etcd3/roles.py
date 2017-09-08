@@ -18,7 +18,7 @@ class Role(object):
         """Delete role from Etcd."""
         self._etcd_client.delete_role(self.name)
 
-    def grant_permission(self, key, end_key, perm_type='read',
+    def grant_permission(self, key, end_key=None, perm_type='read',
                          prefix=False, from_key=False):
         """
         Grant permission to this role.
@@ -36,10 +36,12 @@ class Role(object):
         :param from_key: apply to key as an empty upper bound
         :type from_key: bool
         """
-        self.perm = self._etcd_client.grant_permission_role(self.name, key,
-                                                            perm_type).perm
+        self.perm = self._etcd_client.grant_permission_role(
+            self.name, key, perm_type=perm_type,
+            prefix=prefix, from_key=from_key).perm
 
-    def revoke_permission(self, key, range_end):
+    def revoke_permission(self, key, end_key=None,
+                          prefix=False, from_key=False):
         """
         Revoke permission from one role.
 
@@ -52,7 +54,10 @@ class Role(object):
         :param from_key: apply to key as an empty upper bound
         :type from_key: bool
         """
-        self._etcd_client.revoke_permission_role(self.name, key, range_end)
+        self._etcd_client.revoke_permission_role(self.name, key,
+                                                 end_key=end_key,
+                                                 prefix=prefix,
+                                                 from_key=from_key)
         self.perm = self._etcd_client.get_role(self.name).perm
 
     def __str__(self):
