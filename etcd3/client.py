@@ -229,7 +229,7 @@ class Etcd3Client(object):
                               metadata=self._metadata,
                               timeout=self.timeout)
 
-        return users.User(name=username)
+        return users.User(name=username, etcd_client=self)
 
     @_handle_errors
     def get_user(self, username):
@@ -246,7 +246,8 @@ class Etcd3Client(object):
                                                        metadata=self._metadata,
                                                        timeout=self.timeout)
         return users.User(name=username,
-                          roles=auth_user_get_response.roles)
+                          roles=auth_user_get_response.roles,
+                          etcd_client=self)
 
     @_handle_errors
     def list_user(self):
@@ -261,7 +262,7 @@ class Etcd3Client(object):
             metadata=self._metadata,
             timeout=self.timeout)
         for user in auth_user_list_response.users:
-            yield users.User(user)
+            yield users.User(user, etcd_client=self)
 
     @_handle_errors
     def delete_user(self, username):
@@ -294,7 +295,7 @@ class Etcd3Client(object):
         self.authstub.UserChangePassword(auth_user_change_password_request,
                                          metadata=self._metadata,
                                          timeout=self.timeout)
-        return self.get_user(username, etcd_client=self)
+        return self.get_user(username)
 
     @_handle_errors
     def grant_role_user(self, username, rolename):
@@ -314,7 +315,7 @@ class Etcd3Client(object):
         self.authstub.UserGrantRole(auth_user_grant_role_request,
                                     metadata=self._metadata,
                                     timeout=self.timeout)
-        return self.get_user(username, etcd_client=self)
+        return self.get_user(username)
 
     @_handle_errors
     def revoke_role_user(self, username, rolename):
@@ -334,7 +335,7 @@ class Etcd3Client(object):
         self.authstub.UserRevokeRole(auth_user_revoke_role_request,
                                      metadata=self._metadata,
                                      timeout=self.timeout)
-        return self.get_user(username, etcd_client=self)
+        return self.get_user(username)
 
     @_handle_errors
     def add_role(self, rolename):
@@ -471,7 +472,7 @@ class Etcd3Client(object):
         self.authstub.RoleGrantPermission(auth_role_grant_perm_request,
                                           metadata=self._metadata,
                                           timeout=self.timeout)
-        return self.get_role(rolename, etcd_client=self)
+        return self.get_role(rolename)
 
     @_handle_errors
     def revoke_role_permission(self, rolename, key, end_key=None,
@@ -499,6 +500,7 @@ class Etcd3Client(object):
         self.authstub.RoleRevokePermission(auth_role_revoke_perm_request,
                                            metadata=self._metadata,
                                            timeout=self.timeout)
+        return self.get_role(rolename)
 
     def _build_get_range_request(self, key,
                                  range_end=None,
