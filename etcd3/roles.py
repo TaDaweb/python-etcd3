@@ -18,28 +18,42 @@ class Role(object):
         """Delete role from Etcd."""
         self._etcd_client.delete_role(self.name)
 
-    def grant_permission(self, key, perm_type='read'):
+    def grant_permission(self, key, end_key, perm_type='read',
+                         prefix=False, from_key=False):
         """
         Grant permission to this role.
 
-        :param key: The key path where role can have perms on
+        :param key: the key path of the Etcd on which the permission
+                    must be effective
         :type key: str
-        :param perm_type: The type of permission to apply.
-                          It can be one of 'read', 'write', 'readwrite'
+        :param end_key: the end key of the range
+        :type end_key: str
+        :param perm_type: the permission type, one of 'read', 'write',
+                          'readwrite'
         :type perm_type: str
+        :param prefix: apply to the key as a prefix
+        :type prefix: bool
+        :param from_key: apply to key as an empty upper bound
+        :type from_key: bool
         """
-        self._etcd_client.grant_permission_role(self.name, key, perm_type)
+        self.perm = self._etcd_client.grant_permission_role(self.name, key,
+                                                            perm_type).perm
 
     def revoke_permission(self, key, range_end):
         """
         Revoke permission from one role.
 
-        :param key: The key path in Etcd
+        :param key: the key path of the Etcd
         :type key: str
-        :param range_end: ---
-        :type range_end: ---
+        :param end_key: the end key if a range must be revoked
+        :type end_key: str
+        :param prefix: apply to the key as a prefix
+        :type prefix: bool
+        :param from_key: apply to key as an empty upper bound
+        :type from_key: bool
         """
         self._etcd_client.revoke_permission_role(self.name, key, range_end)
+        self.perm = self._etcd_client.get_role(self.name).perm
 
     def __str__(self):
         def convert(v):

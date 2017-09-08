@@ -444,9 +444,9 @@ class Etcd3Client(object):
 
         :param rolename: the name of the role to be changed
         :type rolename: str
-        :param start_key: the key path of the Etcd on which the permission
-                          must be effective
-        :type start_key: str
+        :param key: the key path of the Etcd on which the permission
+                    must be effective
+        :type key: str
         :param end_key: the end key of the range
         :type end_key: str
         :param perm_type: the permission type, one of 'read', 'write',
