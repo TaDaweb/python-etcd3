@@ -2,6 +2,34 @@ class Etcd3Exception(Exception):
     pass
 
 
+class InvalidArgumentError(Etcd3Exception):
+    pass
+
+
+class PermissionDeniedError(Etcd3Exception):
+    pass
+
+
+class AlreadyExistsError(Etcd3Exception):
+    pass
+
+
+class AbortedError(Etcd3Exception):
+    pass
+
+
+class DeadlineExceededError(Etcd3Exception):
+    pass
+
+
+class UnknownError(Etcd3Exception):
+    pass
+
+
+class UnauthenticatedError(Etcd3Exception):
+    pass
+
+
 class WatchTimedOut(Etcd3Exception):
     pass
 

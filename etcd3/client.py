@@ -23,6 +23,13 @@ _EXCEPTIONS_BY_CODE = {
     grpc.StatusCode.UNAVAILABLE: exceptions.ConnectionFailedError,
     grpc.StatusCode.DEADLINE_EXCEEDED: exceptions.ConnectionTimeoutError,
     grpc.StatusCode.FAILED_PRECONDITION: exceptions.PreconditionFailedError,
+    grpc.StatusCode.UNAUTHENTICATED: exceptions.UnauthenticatedError,
+    grpc.StatusCode.INVALID_ARGUMENT: exceptions.InvalidArgumentError,
+    grpc.StatusCode.PERMISSION_DENIED: exceptions.PermissionDeniedError,
+    grpc.StatusCode.ALREADY_EXISTS: exceptions.AlreadyExistsError,
+    grpc.StatusCode.ABORTED: exceptions.AbortedError,
+    grpc.StatusCode.DEADLINE_EXCEEDED: exceptions.DeadlineExceededError,
+    grpc.StatusCode.UNKNOWN: exceptions.UnknownError,
 }
 
 
@@ -295,7 +302,6 @@ class Etcd3Client(object):
         self.authstub.UserChangePassword(auth_user_change_password_request,
                                          metadata=self._metadata,
                                          timeout=self.timeout)
-        return self.get_user(username)
 
     @_handle_errors
     def grant_role_user(self, username, rolename):
