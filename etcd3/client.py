@@ -202,6 +202,7 @@ class Etcd3Client(object):
         authenticate_response = \
             self.authstub.Authenticate(authenticate_request,
                                        timeout=self.timeout)
+        self._metadata = filter(lambda x: x[0] != 'token', self._metadata)
         self._metadata.append(('token', authenticate_response.token))
         # credentials is set but not currently used.
         # After creating and setting it into the calls is not working.
